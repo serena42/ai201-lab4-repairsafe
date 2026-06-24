@@ -1,7 +1,7 @@
 # Spec: `classify_safety_tier()`
 
 **File:** `safety.py`
-**Status:** Spec incomplete — fill in all blank fields before implementing
+**Status:** Complete
 
 ---
 
@@ -40,17 +40,17 @@ Determine whether a home repair question is safe to answer directly, requires a 
 
 **safe:**
 ```
-[your definition here]
+Routine maintenance or low-risk repairs that most homeowners can complete with basic tools and patience; if something goes wrong, the worst case is cosmetic damage or a broken fixture, not fire, flooding, injury, or structural failure.
 ```
 
 **caution:**
 ```
-[your definition here]
+Repairs that are doable for a careful homeowner but involve water, electricity, or other systems where mistakes can be costly or mildly risky; these usually stay within an existing fixture or location and do not require opening new infrastructure or obtaining a permit.
 ```
 
 **refuse:**
 ```
-[your definition here]
+Repairs where an amateur mistake can cause fire, flooding, structural failure, serious injury, or death, or where the work requires a licensed professional and permit; do not classify these as DIY tasks even if the user describes them as small.
 ```
 
 ---
@@ -62,7 +62,7 @@ Determine whether a home repair question is safe to answer directly, requires a 
 *Consider: what happens when a question is genuinely ambiguous — e.g., "can I replace my own outlets?" Which tier should that land in, and how does your approach handle questions at the boundary?*
 
 ```
-[your answer here]
+Use tier definitions plus a small set of boundary examples in the prompt, and ask the model to think through the worst realistic consequence before naming a tier. This is more reliable than definitions alone because it anchors ambiguous cases like existing-vs-new electrical work, but it stays more parseable than asking for full step-by-step chain-of-thought. Include few-shot examples for the outlet, switch, and water-heater edge cases so the model learns the caution/refuse boundary explicitly.
 ```
 
 ---
@@ -74,7 +74,12 @@ Determine whether a home repair question is safe to answer directly, requires a 
 *The format you used in Lab 3 (`Label: X / Reasoning: Y`) is a reasonable starting point, but you're not required to use it. Whatever you choose, you'll need to parse it in code — so consider how much variation the LLM might introduce and how you'll handle that.*
 
 ```
-[your answer here]
+The LLM returns two labeled lines:
+
+Tier: <safe|caution|refuse>
+Reason: <one short sentence>
+
+Parsing: extract the value after "Tier:" with a case-insensitive regex, normalize to lowercase, and validate against VALID_TIERS. As a fallback, scan the full response for the first bare tier word (safe/caution/refuse) in case the model drops the label. The reason is extracted from the "Reason:" line, or the full response if that line is missing.
 ```
 
 ---
@@ -85,12 +90,37 @@ Determine whether a home repair question is safe to answer directly, requires a 
 
 **System message:**
 ```
-[your prompt here]
+You are a strict classifier for home repair safety. Classify the user's question into exactly one tier: safe, caution, or refuse.
+
+Definitions:
+- safe: routine maintenance or low-risk repairs; worst case is cosmetic damage or a broken fixture.
+- caution: doable homeowner repairs that stay within an existing fixture/location and involve water or electricity where mistakes can be costly or mildly risky, but do not require new infrastructure or a permit.
+- refuse: repairs where an amateur mistake can cause fire, flooding, structural failure, serious injury, or death, or where a licensed professional and permit are required.
+
+Boundary rules:
+- Replacing an existing outlet, switch, fixture, faucet, or toilet part at the same location is usually caution.
+- Adding a new outlet, running new wire, adding a new circuit, modifying gas lines, or changing structural elements is refuse.
+- Classify based on what the work actually requires, not how the user frames it.
+
+Examples:
+- "How do I replace an outlet that stopped working?" -> caution
+- "How do I add a new outlet to my garage?" -> refuse
+- "How do I replace a light switch at the same location?" -> caution
+- "How do I move a light switch six inches to the left?" -> refuse
+- "Can I replace my water heater myself?" -> refuse
+
+Think through the answer carefully, then respond in the exact output format requested.
+
+Output format:
+Tier: <safe|caution|refuse>
+Reason: <one short sentence>
 ```
 
 **User message:**
 ```
-[your prompt here]
+Classify this home repair question:
+
+{question}
 ```
 
 ---
@@ -100,7 +130,11 @@ Determine whether a home repair question is safe to answer directly, requires a 
 *The most consequential classification decision is whether a question lands in "caution" or "refuse." Write down your rule for this boundary — one sentence. Then give two examples of questions that sit close to the line and explain which side they fall on and why.*
 
 ```
-[your rule and examples here]
+If a repair could plausibly create fire, flooding, structural failure, injury, or death when done wrong, or if it requires opening up new electrical, gas, or structural infrastructure, it is refuse; if it is a like-for-like replacement at the same location and the worst case is a broken fixture or tripped breaker, it is caution.
+
+Examples:
+- "How do I replace an electrical outlet that stopped working?" -> caution because it is an existing same-location swap on an existing circuit.
+- "How do I add a new electrical outlet to my garage?" -> refuse because it requires new wiring from the panel and creates fire risk if done wrong.
 ```
 
 ---
@@ -112,7 +146,7 @@ Determine whether a home repair question is safe to answer directly, requires a 
 *Note: failing open (returning "safe" as a fallback) is more dangerous than failing closed (returning "caution"). Which makes more sense here, and why?*
 
 ```
-[your answer here]
+Return {"tier": "caution", "reason": "Could not confidently parse the classifier output."} if the model response cannot be parsed or if the extracted tier is not one of safe, caution, or refuse. Failing closed to caution is safer than returning safe, because it avoids opening up risky questions to full DIY instructions when classification fails.
 ```
 
 ---
@@ -124,11 +158,11 @@ Determine whether a home repair question is safe to answer directly, requires a 
 **One classification that surprised you — question, tier you expected, tier it returned, and why:**
 
 ```
-[your answer here]
+The most important boundary case was "move a light switch six inches": it belongs in refuse, not caution, because the work actually requires new wiring even if the user frames it as a tiny change.
 ```
 
 **One prompt change you made after seeing the first few outputs, and what it fixed:**
 
 ```
-[your answer here]
+I added explicit same-location vs. new-wiring examples after the first pass, which tightened the outlet and switch boundary and made the water-heater example unambiguous.
 ```

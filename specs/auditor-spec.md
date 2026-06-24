@@ -1,7 +1,7 @@
 # Spec: `log_interaction()`
 
 **File:** `auditor.py`
-**Status:** Spec incomplete — fill in all blank fields before implementing
+**Status:** Complete
 
 ---
 
@@ -43,8 +43,8 @@ Record every interaction — question, safety tier, and response preview — to 
 | `"tier"` | `str` | Safety tier assigned to this question |
 | `"question"` | `str` | The user's question, truncated to 300 characters |
 | `"response_preview"` | `str` | First 200 characters of the generated response |
-| `[your field]` | `[type]` | [description] |
-| `[your field]` | `[type]` | [description] |
+| "question_length" | `int` | Original question length before truncation, so a reviewer can tell whether the logged question was clipped |
+| "response_length" | `int` | Original response length before truncation, so a reviewer can see how much was omitted from the preview |
 
 ---
 
@@ -53,7 +53,7 @@ Record every interaction — question, safety tier, and response preview — to 
 *The required fields truncate the question to 300 characters and the response to 200. Write down the reasoning for each — what would you lose by truncating more aggressively, and what's the risk of logging the full text at production scale?*
 
 ```
-[your answer here]
+Truncating the question at 300 characters keeps the log readable while preserving the main repair context, which is usually enough to diagnose why a question was classified a certain way; truncating more aggressively would hide the key noun phrases that distinguish safe, caution, and refuse cases. Truncating the response preview at 200 characters keeps the log compact and reduces the risk of storing long or sensitive responses at scale, but still shows the opening tone and whether the response started with a refusal, a warning, or direct instructions.
 ```
 
 ---
@@ -63,7 +63,7 @@ Record every interaction — question, safety tier, and response preview — to 
 *What happens if `logs/` doesn't exist when the function runs for the first time? How will you handle that — and why is this worth thinking about at all?*
 
 ```
-[your answer here]
+Create logs/ with os.makedirs(..., exist_ok=True) before writing the file. That makes the logger safe to run from a clean checkout or a fresh deployment where the directory has not been created yet, instead of failing on the first interaction.
 ```
 
 ---
@@ -73,7 +73,7 @@ Record every interaction — question, safety tier, and response preview — to 
 *Write an example of what you want the one-line terminal summary to look like after a question is logged. Be specific about format.*
 
 ```
-[your example output here]
+[LOGGED] tier=caution | question="How do I replace a faucet?" | response_preview=147 chars
 ```
 
 ---
@@ -85,11 +85,13 @@ Record every interaction — question, safety tier, and response preview — to 
 **The actual log file content after 3 test queries (paste the three JSON lines):**
 
 ```
-[your answer here]
+{"timestamp": "2026-06-24T01:12:28.690900Z", "tier": "safe", "question": "How do I patch drywall?", "response_preview": "Patch the hole with spackle and sand smooth.", "question_length": 23, "response_length": 44}
+{"timestamp": "2026-06-24T01:12:28.691910Z", "tier": "caution", "question": "Can I replace a faucet?", "response_preview": "Start by shutting off the water...", "question_length": 23, "response_length": 34}
+{"timestamp": "2026-06-24T01:12:28.692728Z", "tier": "refuse", "question": "Can I add a new outlet?", "response_preview": "This is too dangerous to DIY.", "question_length": 23, "response_length": 29}
 ```
 
 **One field you'd add to the log if this were a real production system handling 10,000 questions per day:**
 
 ```
-[your answer here]
+request_id — a unique identifier (e.g. a UUID) generated per interaction and passed through the classifier, responder, and logger. At 10,000 questions/day, you need to correlate the classifier's tier decision with the response that was actually shown to the user; without a shared ID, you can't tell whether a suspicious response_preview came from a misclassification or a responder bug, because the two log entries have nothing to join on.
 ```
